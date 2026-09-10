@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../game/progress.dart';
 import '../game/puzzle.dart';
-import '../game/session.dart';
 import 'pro_page.dart';
 
 class GamePage extends StatefulWidget {
@@ -42,16 +41,31 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _game = widget.controller.active!;
     _elapsed = _game.data.elapsedSeconds;
+    _startTimer();
+  }
+
+  void _startTimer() {
+    if (_finished || _timer?.isActive == true) {
+      return;
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && !_finished) setState(() => _elapsed++);
+      if (mounted && !_finished) {
+        setState(() => _elapsed++);
+      }
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTimer();
+      return;
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
+      _timer?.cancel();
       unawaited(widget.controller.saveActive(elapsedSeconds: _elapsed));
     }
   }
@@ -67,13 +81,17 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 
   Future<void> _tap(int row, int col) async {
-    if (_finished) return;
+    if (_finished) {
+      return;
+    }
     final changed = _game.session.cycle(
       row,
       col,
       autoCross: widget.controller.settings.autoCross,
     );
-    if (!changed) return;
+    if (!changed) {
+      return;
+    }
     widget.controller.feedback.tap(widget.controller.settings);
     setState(() {});
     await widget.controller.saveActive(elapsedSeconds: _elapsed);
@@ -81,17 +99,27 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
   }
 
   Future<void> _block(int row, int col) async {
-    if (_finished || !_game.session.toggleBlocked(row, col)) return;
+    if (_finished || !_game.session.toggleBlocked(row, col)) {
+      return;
+    }
     widget.controller.feedback.tap(widget.controller.settings);
     setState(() {});
     await widget.controller.saveActive(elapsedSeconds: _elapsed);
   }
 
   Future<void> _hint() async {
+    if (_finished) {
+      return;
+    }
     final suggestion = _game.session.nextHint();
-    if (suggestion == null) return;
-    final result = await widget.controller.requestHint(elapsedSeconds: _elapsed);
-    if (!mounted) return;
+    if (suggestion == null) {
+      return;
+    }
+    final result =
+        await widget.controller.requestHint(elapsedSeconds: _elapsed);
+    if (!mounted) {
+      return;
+    }
     switch (result) {
       case HintRequestResult.applied:
         setState(() {});
@@ -108,24 +136,37 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
         );
       case HintRequestResult.requiresPro:
         await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ProPage(controller: widget.controller)),
+          MaterialPageRoute(
+            builder: (_) => ProPage(controller: widget.controller),
+          ),
         );
     }
   }
 
   Future<void> _checkWin() async {
-    if (!_game.session.isSolved || _finished) return;
+    if (!_game.session.isSolved || _finished) {
+      return;
+    }
     _finished = true;
     _timer?.cancel();
     widget.controller.feedback.success(widget.controller.settings);
     final completedMode = _game.data.mode;
-    final reward = await widget.controller.completeActive(elapsedSeconds: _elapsed);
-    if (!mounted) return;
+    final reward =
+        await widget.controller.completeActive(elapsedSeconds: _elapsed);
+    if (!mounted) {
+      return;
+    }
     await _showVictory(reward);
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     await widget.controller.maybeShowCompletionAd(completedMode);
-    if (!mounted) return;
-    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    if (!mounted) {
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _showVictory(ProgressReward reward) {
@@ -145,7 +186,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
           children: [
             Text(
               '+${reward.xp} XP',
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             Text('${_game.session.moves} moves · ${_formatTime(_elapsed)}'),
@@ -158,7 +201,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
             ],
             if (reward.xp == 0) ...[
               const SizedBox(height: 8),
-              const Text('Daily replay complete — XP was already claimed.'),
+              const Text(
+                'Daily replay complete — XP was already claimed.',
+              ),
             ],
           ],
         ),
@@ -180,8 +225,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     final conflicts = settings.showConflicts
         ? PuzzleRules.conflicts(puzzle, _game.session.marks)
         : <CellPos>{};
-    final animationDuration =
-        settings.reducedMotion ? Duration.zero : const Duration(milliseconds: 140);
+    final animationDuration = settings.reducedMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 140);
 
     return Scaffold(
       appBar: AppBar(
@@ -220,7 +266,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                     ),
                     _InfoChip(
                       icon: Icons.psychology_rounded,
-                      label: '${_game.analysis.score} ${_game.analysis.label}',
+                      label:
+                          '${_game.analysis.score} ${_game.analysis.label}',
                     ),
                     _InfoChip(
                       icon: Icons.lightbulb_outline_rounded,
@@ -246,7 +293,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                           borderRadius: BorderRadius.circular(24),
                           child: GridView.builder(
                             physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: puzzle.size,
                             ),
                             itemCount: puzzle.size * puzzle.size,
@@ -255,15 +303,20 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                               final col = index % puzzle.size;
                               final region = puzzle.regions[row][col];
                               return _RoomCell(
+                                row: row,
+                                col: col,
                                 duration: animationDuration,
-                                regionColor: _regionColors[region % _regionColors.length],
+                                regionColor: _regionColors[
+                                    region % _regionColors.length],
                                 regionLabel: settings.regionLabels
                                     ? String.fromCharCode(65 + region)
                                     : null,
                                 mark: _game.session.marks[row][col],
                                 laser: puzzle.isLaser(row, col),
-                                conflict: conflicts.contains((row: row, col: col)),
-                                border: _cellBorder(puzzle, row, col, theme),
+                                conflict: conflicts
+                                    .contains((row: row, col: col)),
+                                border:
+                                    _cellBorder(puzzle, row, col, theme),
                                 onTap: () => _tap(row, col),
                                 onLongPress: () => _block(row, col),
                               );
@@ -284,7 +337,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                       onPressed: _game.session.canUndo
                           ? () async {
                               setState(_game.session.undo);
-                              await widget.controller.saveActive(elapsedSeconds: _elapsed);
+                              await widget.controller
+                                  .saveActive(elapsedSeconds: _elapsed);
                             }
                           : null,
                       icon: const Icon(Icons.undo_rounded),
@@ -293,7 +347,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                     OutlinedButton.icon(
                       onPressed: () async {
                         setState(_game.session.reset);
-                        await widget.controller.saveActive(elapsedSeconds: _elapsed);
+                        await widget.controller
+                            .saveActive(elapsedSeconds: _elapsed);
                       },
                       icon: const Icon(Icons.restart_alt_rounded),
                       label: const Text('Reset'),
@@ -312,7 +367,10 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.info_outline_rounded,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 12),
                         const Expanded(
                           child: Text(
@@ -325,7 +383,9 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 10),
                 Align(
-                  child: widget.controller.ads.banner(enabled: !widget.controller.isPro),
+                  child: widget.controller.ads.banner(
+                    enabled: !widget.controller.isPro,
+                  ),
                 ),
               ],
             ),
@@ -360,6 +420,8 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
 
 class _RoomCell extends StatelessWidget {
   const _RoomCell({
+    required this.row,
+    required this.col,
     required this.duration,
     required this.regionColor,
     required this.regionLabel,
@@ -371,6 +433,8 @@ class _RoomCell extends StatelessWidget {
     required this.onLongPress,
   });
 
+  final int row;
+  final int col;
   final Duration duration;
   final Color regionColor;
   final String? regionLabel;
@@ -385,9 +449,13 @@ class _RoomCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final base = dark ? Color.alphaBlend(Colors.black54, regionColor) : regionColor;
+    final base =
+        dark ? Color.alphaBlend(Colors.black54, regionColor) : regionColor;
     final background = conflict
-        ? Color.alphaBlend(theme.colorScheme.error.withValues(alpha: 0.35), base)
+        ? Color.alphaBlend(
+            theme.colorScheme.error.withValues(alpha: 0.35),
+            base,
+          )
         : base;
 
     Widget child = const SizedBox.shrink(key: ValueKey('empty'));
@@ -402,7 +470,9 @@ class _RoomCell extends StatelessWidget {
         Icons.person_rounded,
         key: const ValueKey('thief'),
         size: 34,
-        color: conflict ? theme.colorScheme.error : theme.colorScheme.onSurface,
+        color: conflict
+            ? theme.colorScheme.error
+            : theme.colorScheme.onSurface,
       );
     } else if (mark == CellMark.blocked) {
       child = Icon(
@@ -418,10 +488,11 @@ class _RoomCell extends StatelessWidget {
         : switch (mark) {
             CellMark.empty => 'empty room',
             CellMark.blocked => 'room marked impossible',
-            CellMark.thief => conflict ? 'thief with conflict' : 'thief',
+            CellMark.thief =>
+              conflict ? 'thief with conflict' : 'thief',
           };
     final label = [
-      'Row ${_rowLabel(context)}, column ${_columnLabel(context)}',
+      'Row ${row + 1}, column ${col + 1}',
       if (regionLabel != null) 'zone $regionLabel',
       stateLabel,
     ].join(', ');
@@ -445,12 +516,15 @@ class _RoomCell extends StatelessWidget {
                     child: Text(
                       regionLabel!,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.50),
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.50),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                Center(child: AnimatedSwitcher(duration: duration, child: child)),
+                Center(
+                  child: AnimatedSwitcher(duration: duration, child: child),
+                ),
               ],
             ),
           ),
@@ -458,9 +532,6 @@ class _RoomCell extends StatelessWidget {
       ),
     );
   }
-
-  String _rowLabel(BuildContext context) => 'cell';
-  String _columnLabel(BuildContext context) => 'cell';
 }
 
 class _InfoChip extends StatelessWidget {
