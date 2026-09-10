@@ -89,11 +89,18 @@ class _StorePurchaseService implements PurchaseService {
     );
     try {
       _available = await _iap.isAvailable();
-      if (!_available) return;
+      if (!_available) {
+        return;
+      }
       final response = await _iap.queryProductDetails({lifetimeProductId});
-      if (response.error != null) _error.value = response.error!.message;
+      if (response.error != null) {
+        _error.value = response.error!.message;
+      }
       for (final detail in response.productDetails) {
         _details[detail.id] = detail;
+      }
+      if (!_details.containsKey(lifetimeProductId) && response.error == null) {
+        _error.value = 'The lifetime product is not configured in this store.';
       }
     } catch (error) {
       _error.value = error.toString();
@@ -136,18 +143,41 @@ class _StorePurchaseService implements PurchaseService {
 
   Future<void> _onPurchases(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
-      if (purchase.status == PurchaseStatus.error) {
-        _error.value = purchase.error?.message ?? 'Purchase failed.';
+      switch (purchase.status) {
+        case PurchaseStatus.pending:
+          break;
+        case PurchaseStatus.error:
+          _error.value = purchase.error?.message ?? 'Purchase failed.';
+        case PurchaseStatus.canceled:
+          _error.value = null;
+        case PurchaseStatus.purchased:
+        case PurchaseStatus.restored:
+          if (purchase.productID == lifetimeProductId) {
+            if (_hasReceiptEvidence(purchase)) {
+              _pro.value = true;
+              _error.value = null;
+            } else {
+              _error.value =
+                  'The store returned a purchase without verifiable receipt data. Pro was not granted.';
+            }
+          }
       }
-      if (purchase.productID == lifetimeProductId &&
-          (purchase.status == PurchaseStatus.purchased ||
-              purchase.status == PurchaseStatus.restored)) {
-        _pro.value = true;
-      }
+
       if (purchase.pendingCompletePurchase) {
-        await _iap.completePurchase(purchase);
+        try {
+          await _iap.completePurchase(purchase);
+        } catch (error) {
+          _error.value = 'Could not finalize the store transaction: $error';
+        }
       }
     }
+  }
+
+  bool _hasReceiptEvidence(PurchaseDetails purchase) {
+    final verification = purchase.verificationData;
+    return purchase.productID == lifetimeProductId &&
+        verification.source.trim().isNotEmpty &&
+        verification.serverVerificationData.trim().isNotEmpty;
   }
 
   @override
