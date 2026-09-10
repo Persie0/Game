@@ -28,13 +28,10 @@ enum HintRequestResult { applied, noHint, requiresPro }
 class AppController extends ChangeNotifier {
   AppController._({
     required AppRepository repository,
-    required PurchaseService purchases,
-    required AdService ads,
-    required PersistentState state,
-  })  : _repository = repository,
-        purchases = purchases,
-        ads = ads,
-        state = state;
+    required this.purchases,
+    required this.ads,
+    required this.state,
+  }) : _repository = repository;
 
   final AppRepository _repository;
   final PuzzleGenerator generator = PuzzleGenerator();
