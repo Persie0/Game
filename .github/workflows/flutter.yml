@@ -2,7 +2,7 @@ name: Flutter CI
 
 on:
   push:
-    branches: [main, feature/museum-heist]
+    branches: [main, 'feature/**']
   pull_request:
 
 jobs:
