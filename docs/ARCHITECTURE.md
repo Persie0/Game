@@ -1,34 +1,38 @@
 # Architecture
 
-## Technology choice
+## Product boundary
 
-Museum Heist is deliberately implemented in Flutter/Dart rather than a full game engine. The core interaction is a turn-based grid puzzle, so most complexity is UI, state, progression, monetization, persistence, accessibility, and store integration rather than physics or frame-by-frame simulation.
-
-The puzzle engine is pure Dart and kept independent from widgets. This makes generation and validation deterministic and cheap to test. Flutter owns rendering and input. Flame is intentionally not a dependency; it can be introduced later for effects without moving the puzzle rules out of Dart.
+Museum Heist is a turn-based grid puzzle, so Flutter is the rendering/application layer while the actual game engine stays pure Dart. No real-time game engine is required.
 
 ## Modules
 
-- `lib/game/puzzle.dart`: puzzle model, seeded generator, uniqueness solver, laser constraints, validation.
-- `lib/game/session.dart`: mutable play session, cell marks, undo, hints, reset.
-- `lib/main.dart`: responsive Material 3 app and board presentation.
+- `lib/game/puzzle.dart` — model, procedural generator, unique-solution solver, rules and difficulty analysis.
+- `lib/game/hints.dart` — explainable forced-move and contradiction hints.
+- `lib/game/session.dart` — marks, auto-cross transactions, undo history, hints/mistakes and serialization.
+- `lib/game/progress.dart` — settings, XP/ranks, streaks, records and persistent active-game metadata.
+- `lib/data/app_repository.dart` — persistence abstraction and `SharedPreferencesAsync` implementation.
+- `lib/services/*` — sound/haptics, purchases and ads behind cross-platform contracts.
+- `lib/app_controller.dart` — orchestration, active-game restore, completion rewards and monetization gates.
+- `lib/ui/*` — onboarding, home, gameplay, statistics, settings and Pro UI.
 
 ## Puzzle invariants
 
-A valid solution contains exactly one thief in every row, every column, and every security region. No two thieves may touch orthogonally or diagonally. Laser cells are forbidden.
+A solution has exactly one thief per row, column and region. Thieves cannot touch orthogonally or diagonally. Laser cells are forbidden. Generation starts from a valid non-touching permutation, grows regions from each solution cell, then rejects any board whose solver count is not exactly one.
 
-Generation starts from a valid non-touching permutation, grows contiguous security regions outward from solution cells, then accepts only boards with exactly one solver-confirmed solution. Laser cells are selected only from cells outside the known solution.
+## Hint correctness
 
-## Cross-platform strategy
+Hints do not guess. The hint engine first reports conflicts, then finds rows with exactly one candidate that can still complete the puzzle. If no immediate forced placement exists, it tests candidate assumptions; an assumption that leaves zero full solutions is a valid contradiction and can be marked X.
 
-Flutter targets Android, iOS, web, Windows, macOS and Linux from the same Dart codebase. Platform runner projects can be generated with `flutter create . --platforms=android,ios,web,windows,macos,linux`; CI does this before analysis and tests to keep this repository focused on authored source rather than generated boilerplate.
+## Persistence and versioning
 
-## Production next steps
+Only authored state is stored: generator version, seed, mode, difficulty, session marks/history, elapsed time, settings and progression. A saved game with an incompatible generator version is discarded instead of being regenerated into a different board. Daily seeds also include the generator version.
 
-1. Persist daily completions, streaks, settings, undo state and statistics.
-2. Add a difficulty scorer based on solver deductions rather than board size alone.
-3. Add logical hint explanations instead of revealing raw solution cells.
-4. Add authored laser patterns / camera-line constraints for later chapters.
-5. Add onboarding, haptics, sound, celebration effects and reduced-motion support.
-6. Add localization before content production.
-7. Add ads/IAP behind service abstractions so the core game stays testable.
-8. Add deterministic daily puzzle versioning so generator changes never alter historical dailies.
+## Retention and progression
+
+Completion awards XP based on base difficulty, solver-derived puzzle complexity, move efficiency, hints and perfect-clear status. Daily rewards are idempotent per date and difficulty, so replaying cannot farm XP. Consecutive daily dates drive the streak. Cosmetic skins unlock only from local reputation level and do not affect puzzle rules.
+
+## Monetization boundary
+
+`in_app_purchase` is isolated behind `PurchaseService`; `google_mobile_ads` is isolated behind `AdService`. Web and unsupported desktop targets compile against safe fallbacks. Ad requests are gated behind Google UMP consent information. The core rules and persistence do not depend on either SDK.
+
+The client currently grants Pro from a store purchased/restored event and persists the result locally. For a high-value production economy, add server-side receipt/token verification before treating entitlement as authoritative.
