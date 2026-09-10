@@ -1,30 +1,27 @@
 # Museum Heist
 
-A modern, cross-platform Queens-style logic puzzle built with Flutter/Dart.
+Museum Heist is a production-oriented, cross-platform Queens-style logic game built in Flutter/Dart. Place one thief in each row, column, and colored security zone; thieves cannot touch and laser rooms are forbidden.
 
-You are planning a museum infiltration. Place exactly one thief in every row, column, and colored security zone. Thieves may not touch, even diagonally, and laser rooms are permanently forbidden.
+## Release feature set
 
-## Included MVP
+- Deterministic Daily Heist and unlimited Free Play
+- Rookie 5×5, Professional 6×6, Mastermind 7×7
+- Procedural contiguous security zones with solver-confirmed unique solutions
+- Generator versioning so persisted and daily games never silently change
+- Solver-derived difficulty score and labels
+- Logical hints based on forced placements and contradiction testing
+- Auto-X marking with transaction-level undo, conflict feedback, reset and resume
+- Full local persistence of board, undo history, settings and progression
+- XP, levels, five reputation ranks, daily streaks, perfect clears and personal records
+- Achievements plus unlockable Classic, Noir, Emerald and Neon museum skins
+- First-launch onboarding, light/dark/system theme and reduced-motion support
+- Color-accessibility region labels, semantics, haptics and sound feedback
+- Consent-aware Android/iOS AdMob banners, rewarded hints and paced interstitials
+- Lifetime Pro purchase/restore through Flutter's official in-app-purchase API
+- Web/Windows/Linux-safe fallbacks for mobile-only monetization
+- Analyzer, unit/widget tests and release web build in GitHub Actions
 
-- Daily deterministic puzzle and unlimited free-play mode
-- Rookie 5×5, Professional 6×6, and Mastermind 7×7 boards
-- Procedurally grown contiguous security zones
-- Backtracking solver that rejects non-unique generated boards
-- Laser-cell constraint unique to the Museum Heist theme
-- Tap cycle and long-press X marking
-- Live conflict highlighting
-- Undo, reset, and hint controls
-- Responsive Material 3 UI, light/dark themes, semantic labels
-- Pure-Dart puzzle/session separation with unit tests
-- GitHub Actions for formatting, analysis, tests, and a release web build
-
-## Why Flutter
-
-This is a turn-based, touch-first puzzle rather than a physics-heavy real-time game. Flutter gives one UI codebase across Android, iOS, web, Windows, macOS, and Linux and has first-party guidance specifically for casual turn-based games. The game logic stays pure Dart. Flame is intentionally optional and can be added later only if richer game-loop effects justify it.
-
-## Run locally
-
-Install a current stable Flutter SDK, then:
+## Run
 
 ```bash
 flutter create . --platforms=android,ios,web,windows,macos,linux
@@ -33,14 +30,21 @@ flutter test
 flutter run
 ```
 
-For a web build:
+## Store configuration
+
+The repository contains no private credentials. Create the non-consumable product `museum_heist_pro_lifetime` in Google Play Console and App Store Connect.
+
+Ad unit IDs are injected at build time, for example:
 
 ```bash
-flutter build web --release
+flutter build appbundle --release \
+  --dart-define=ADMOB_BANNER_ANDROID=... \
+  --dart-define=ADMOB_REWARDED_ANDROID=... \
+  --dart-define=ADMOB_INTERSTITIAL_ANDROID=...
 ```
 
-## Product direction
+iOS uses the corresponding `*_IOS` defines. Google Mobile Ads also requires the AdMob app ID in the generated Android/iOS runner configuration. See `docs/RELEASE.md`.
 
-The MVP is intentionally small. Commercial expansion should focus on retention rather than mechanical bloat: daily heists, streaks, museum chapters, logical hints, cosmetic themes, achievements/leaderboards, and optional rewarded ads / ad-removal IAP.
+## Architecture
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for design constraints and the production roadmap.
+Puzzle generation, solving, hints and sessions remain pure Dart. Persistence, advertising and purchases sit behind small service interfaces so unsupported platforms do not invoke mobile SDKs. See `docs/ARCHITECTURE.md`.
