@@ -82,7 +82,10 @@ class HeistPanel extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color.alphaBlend(line.withValues(alpha: emphasis ? 0.12 : 0.035), top),
+            Color.alphaBlend(
+              line.withValues(alpha: emphasis ? 0.12 : 0.035),
+              top,
+            ),
             bottom,
           ],
         ),
@@ -113,7 +116,10 @@ class HeistPanel extends StatelessWidget {
               left: 0,
               top: 0,
               bottom: 0,
-              child: Container(width: emphasis ? 5 : 3, color: line.withValues(alpha: 0.72)),
+              child: Container(
+                width: emphasis ? 5 : 3,
+                color: line.withValues(alpha: 0.72),
+              ),
             ),
             Padding(padding: padding, child: child),
           ],
@@ -200,8 +206,8 @@ class HeistButton extends StatelessWidget {
     final enabled = onPressed != null;
     final foreground = primary
         ? (ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-            ? Colors.white
-            : Colors.black)
+              ? Colors.white
+              : Colors.black)
         : theme.colorScheme.onSurface;
 
     return Opacity(
@@ -227,7 +233,9 @@ class HeistButton extends StatelessWidget {
                       ],
                     )
                   : null,
-              color: primary ? null : theme.colorScheme.surface.withValues(alpha: 0.72),
+              color: primary
+                  ? null
+                  : theme.colorScheme.surface.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(13),
               border: Border.all(
                 color: primary
@@ -248,7 +256,11 @@ class HeistButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: compact ? 18 : 20, color: primary ? foreground : color),
+                Icon(
+                  icon,
+                  size: compact ? 18 : 20,
+                  color: primary ? foreground : color,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   label,
@@ -308,7 +320,7 @@ class HeistSectionTitle extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }
@@ -336,7 +348,9 @@ class HeistProgressBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(99),
-            border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.09)),
+            border: Border.all(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.09),
+            ),
           ),
           child: Align(
             alignment: Alignment.centerLeft,
@@ -346,14 +360,14 @@ class HeistProgressBar extends StatelessWidget {
               width: width,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Color.lerp(color, Colors.white, 0.2)!,
-                    color,
-                  ],
+                  colors: [Color.lerp(color, Colors.white, 0.2)!, color],
                 ),
                 borderRadius: BorderRadius.circular(99),
                 boxShadow: [
-                  BoxShadow(color: color.withValues(alpha: 0.28), blurRadius: 8),
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.28),
+                    blurRadius: 8,
+                  ),
                 ],
               ),
             ),
@@ -388,8 +402,16 @@ class _BlueprintPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
     final radius = math.min(size.width, size.height) * 0.42;
-    canvas.drawCircle(Offset(size.width * 0.86, size.height * 0.14), radius, sweep);
-    canvas.drawCircle(Offset(size.width * 0.08, size.height * 0.86), radius * 0.72, sweep);
+    canvas.drawCircle(
+      Offset(size.width * 0.86, size.height * 0.14),
+      radius,
+      sweep,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.08, size.height * 0.86),
+      radius * 0.72,
+      sweep,
+    );
   }
 
   @override
