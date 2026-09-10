@@ -1,7 +1,7 @@
 name: museum_heist
 publish_to: 'none'
 description: A modern cross-platform Queens-style logic game with a museum-heist theme.
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  google_mobile_ads: ^9.1.0
+  in_app_purchase: ^3.3.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
