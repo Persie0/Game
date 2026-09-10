@@ -33,8 +33,14 @@ class _MuseumHomeState extends State<MuseumHome> {
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.key_rounded), label: 'Heists'),
-          NavigationDestination(icon: Icon(Icons.query_stats_rounded), label: 'Stats'),
-          NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'Settings'),
+          NavigationDestination(
+            icon: Icon(Icons.query_stats_rounded),
+            label: 'Stats',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.tune_rounded),
+            label: 'Settings',
+          ),
         ],
       ),
     );
@@ -51,7 +57,8 @@ class PlayTab extends StatelessWidget {
     final theme = Theme.of(context);
     final progress = controller.progress;
     final today = DateTime.now();
-    final dailyDone = progress.hasDailyCompletion(today, HeistDifficulty.professional);
+    final dailyDone =
+        progress.hasDailyCompletion(today, HeistDifficulty.professional);
 
     return ListView(
       key: const PageStorageKey('heists'),
@@ -65,7 +72,9 @@ class PlayTab extends StatelessWidget {
                 children: [
                   Text(
                     'Museum Heist',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -85,10 +94,14 @@ class PlayTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Semantics(
-          label: '${progress.xpIntoLevel} of 500 experience toward next level',
+          label:
+              '${progress.xpIntoLevel} of 500 experience toward next level',
           child: ClipRRect(
             borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(value: progress.levelProgress, minHeight: 8),
+            child: LinearProgressIndicator(
+              value: progress.levelProgress,
+              minHeight: 8,
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -115,7 +128,9 @@ class PlayTab extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Icon(
-                      dailyDone ? Icons.check_rounded : Icons.calendar_today_rounded,
+                      dailyDone
+                          ? Icons.check_rounded
+                          : Icons.calendar_today_rounded,
                       color: theme.colorScheme.primary,
                       size: 30,
                     ),
@@ -127,7 +142,9 @@ class PlayTab extends StatelessWidget {
                       children: [
                         Text(
                           "Today's Gallery",
-                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -147,7 +164,9 @@ class PlayTab extends StatelessWidget {
         const SizedBox(height: 24),
         Text(
           'Choose a target',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
         ),
         const SizedBox(height: 12),
         for (final difficulty in HeistDifficulty.values) ...[
@@ -160,9 +179,7 @@ class PlayTab extends StatelessWidget {
           const SizedBox(height: 10),
         ],
         const SizedBox(height: 8),
-        Align(
-          child: controller.ads.banner(enabled: !controller.isPro),
-        ),
+        Align(child: controller.ads.banner(enabled: !controller.isPro)),
       ],
     );
   }
@@ -172,8 +189,35 @@ class PlayTab extends StatelessWidget {
     GameMode mode,
     HeistDifficulty difficulty,
   ) async {
+    if (controller.active != null) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Abandon current heist?'),
+          content: const Text(
+            'Starting another target replaces your unfinished heist. Your career statistics are kept.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep current'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Start new heist'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !context.mounted) {
+        return;
+      }
+    }
+
     await controller.startGame(mode: mode, difficulty: difficulty);
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => GamePage(controller: controller)),
     );
@@ -195,7 +239,8 @@ class _ContinueCard extends StatelessWidget {
     return Card(
       color: Theme.of(context).colorScheme.secondaryContainer,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         leading: const CircleAvatar(child: Icon(Icons.play_arrow_rounded)),
         title: const Text(
           'Continue current heist',
@@ -229,20 +274,27 @@ class _DifficultyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final base = '${difficulty.size}×${difficulty.size} · ${difficulty.laserCount} lasers';
+    final base =
+        '${difficulty.size}×${difficulty.size} · ${difficulty.laserCount} lasers';
     final records = <String>[
       if (bestMoves != null) 'best $bestMoves moves',
       if (bestSeconds != null) formatTime(bestSeconds!),
     ];
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: theme.colorScheme.tertiaryContainer,
           child: Text('${difficulty.size}'),
         ),
-        title: Text(difficulty.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(records.isEmpty ? base : '$base · ${records.join(' · ')}'),
+        title: Text(
+          difficulty.label,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          records.isEmpty ? base : '$base · ${records.join(' · ')}',
+        ),
         trailing: const Icon(Icons.arrow_forward_rounded),
         onTap: onTap,
       ),
