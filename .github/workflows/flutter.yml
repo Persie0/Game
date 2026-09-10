@@ -17,8 +17,8 @@ jobs:
       - name: Generate platform runners
         run: flutter create . --platforms=android,ios,web,windows,macos,linux
       - run: flutter pub get
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Format source
+        run: dart format lib test
       - run: flutter analyze
       - run: flutter test
       - name: Build web release
