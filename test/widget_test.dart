@@ -36,7 +36,7 @@ void main() {
   testWidgets('tutorial teaches by interacting with target rooms', (
     tester,
   ) async {
-    final controller = await AppController.memory(const PersistentState());
+    final controller = await AppController.memory(PersistentState());
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(MuseumHeistApp(controller: controller));
