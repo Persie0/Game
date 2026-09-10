@@ -22,11 +22,15 @@ class PreferencesAppRepository implements AppRepository {
   @override
   Future<PersistentState> load() async {
     final raw = await _preferences.getString(_key);
-    if (raw == null || raw.isEmpty) return PersistentState();
+    if (raw == null || raw.isEmpty) {
+      return PersistentState();
+    }
 
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! Map) throw const FormatException('State is not a JSON object.');
+      if (decoded is! Map) {
+        throw const FormatException('State is not a JSON object.');
+      }
       return PersistentState.fromJson(Map<String, Object?>.from(decoded));
     } catch (_) {
       // Preserve malformed state for diagnosis instead of repeatedly failing on
@@ -56,7 +60,7 @@ class PreferencesAppRepository implements AppRepository {
     final next = _writeTail.then((_) => operation());
     _writeTail = next.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     return next;
   }
