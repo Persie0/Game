@@ -34,7 +34,10 @@ class GameSession {
       : marks = List.generate(
           puzzle.size,
           (_) => List.filled(puzzle.size, CellMark.empty),
-        );
+        ),
+        _history = [],
+        hintsUsed = 0,
+        mistakes = 0;
 
   GameSession._(
     this.puzzle,
@@ -168,7 +171,7 @@ class GameSession {
       if (values.length != puzzle.size) return GameSession(puzzle);
       marks.add([
         for (final value in values)
-          CellMark.values[(value as int).clamp(0, CellMark.values.length - 1) as int],
+          CellMark.values[(value as int).clamp(0, CellMark.values.length - 1)],
       ]);
     }
 
@@ -177,9 +180,11 @@ class GameSession {
     for (final rawAction in rawHistory) {
       final action = <CellChange>[];
       for (final rawChange in rawAction as List<Object?>) {
-        action.add(CellChange.fromJson(
-          Map<String, Object?>.from(rawChange! as Map),
-        ));
+        action.add(
+          CellChange.fromJson(
+            Map<String, Object?>.from(rawChange! as Map),
+          ),
+        );
       }
       history.add(action);
     }
