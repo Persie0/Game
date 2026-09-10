@@ -1,0 +1,25 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, feature/museum-heist]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform runners
+        run: flutter create . --platforms=android,ios,web,windows,macos,linux
+      - run: flutter pub get
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build web release
+        run: flutter build web --release
