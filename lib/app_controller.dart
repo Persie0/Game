@@ -54,7 +54,13 @@ class AppController extends ChangeNotifier {
       ads: createAdService(),
       state: state,
     );
+
+    final hadSavedGame = state.activeGame != null;
     controller._restoreActive();
+    if (hadSavedGame && controller.state.activeGame == null) {
+      await repo.save(controller.state);
+    }
+
     controller.purchases.proEntitlement.addListener(controller._syncStorePro);
     await Future.wait([
       controller.purchases.initialize(),
@@ -72,6 +78,7 @@ class AppController extends ChangeNotifier {
     if (data == null ||
         data.generatorVersion != PuzzleGenerator.generatorVersion) {
       state.activeGame = null;
+      active = null;
       return;
     }
     try {
@@ -115,9 +122,11 @@ class AppController extends ChangeNotifier {
 
   Future<void> saveActive({required int elapsedSeconds}) async {
     final current = active;
-    if (current == null) return;
+    if (current == null) {
+      return;
+    }
     current.data.session = current.session.toJson();
-    current.data.elapsedSeconds = elapsedSeconds;
+    current.data.elapsedSeconds = elapsedSeconds < 0 ? 0 : elapsedSeconds;
     state.activeGame = current.data;
     await _save();
     notifyListeners();
@@ -125,17 +134,29 @@ class AppController extends ChangeNotifier {
 
   Future<HintRequestResult> requestHint({required int elapsedSeconds}) async {
     final current = active;
-    if (current == null) return HintRequestResult.noHint;
+    if (current == null) {
+      return HintRequestResult.noHint;
+    }
     final suggestion = current.session.nextHint();
-    if (suggestion == null) return HintRequestResult.noHint;
+    if (suggestion == null) {
+      return HintRequestResult.noHint;
+    }
 
     final freeHint = current.session.hintsUsed < 2;
     if (!isPro && !freeHint) {
       final earned = await ads.showRewarded();
-      if (!earned) return HintRequestResult.requiresPro;
+      if (!earned) {
+        return HintRequestResult.requiresPro;
+      }
     }
 
-    current.session.applyHint(suggestion, autoCross: settings.autoCross);
+    final applied = current.session.applyHint(
+      suggestion,
+      autoCross: settings.autoCross,
+    );
+    if (!applied) {
+      return HintRequestResult.noHint;
+    }
     feedback.hint(settings);
     await saveActive(elapsedSeconds: elapsedSeconds);
     return HintRequestResult.applied;
@@ -154,7 +175,7 @@ class AppController extends ChangeNotifier {
       mode: current.data.mode,
       difficulty: current.data.difficulty,
       moves: current.session.moves,
-      seconds: elapsedSeconds,
+      seconds: elapsedSeconds < 0 ? 0 : elapsedSeconds,
       hintsUsed: current.session.hintsUsed,
       mistakes: current.session.mistakes,
       difficultyScore: current.analysis.score,
@@ -167,7 +188,9 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> maybeShowCompletionAd(GameMode completedMode) async {
-    if (isPro || completedMode != GameMode.freePlay) return;
+    if (isPro || completedMode != GameMode.freePlay) {
+      return;
+    }
     if (progress.freePlaySinceAd == 0 ||
         progress.freePlaySinceAd % 3 != 0) {
       return;
@@ -214,8 +237,9 @@ class AppController extends ChangeNotifier {
 
   Future<void> resetProgress() async {
     final keepPro = progress.pro;
+    final keptSettings = GameSettings.fromJson(settings.toJson());
     state = PersistentState(
-      settings: settings,
+      settings: keptSettings,
       progress: PlayerProgress(pro: keepPro),
       onboardingDone: true,
     );
