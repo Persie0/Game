@@ -18,6 +18,11 @@ class HintSuggestion {
 
 class HintEngine {
   static HintSuggestion? next(Puzzle puzzle, List<List<CellMark>> marks) {
+    if (marks.length != puzzle.size ||
+        marks.any((row) => row.length != puzzle.size)) {
+      return null;
+    }
+
     final conflicts = PuzzleRules.conflicts(puzzle, marks);
     if (conflicts.isNotEmpty) {
       final target = conflicts.first;
@@ -45,7 +50,9 @@ class HintEngine {
 
     for (var row = 0; row < puzzle.size; row++) {
       for (var col = 0; col < puzzle.size; col++) {
-        if (marks[row][col] != CellMark.empty || puzzle.isLaser(row, col)) continue;
+        if (marks[row][col] != CellMark.empty || puzzle.isLaser(row, col)) {
+          continue;
+        }
         final target = (row: row, col: col);
         final solutions = PuzzleSolver.countSolutions(
           puzzle,
@@ -65,13 +72,16 @@ class HintEngine {
       }
     }
 
+    // Some positions require a deeper search than the short explanations above.
+    // The puzzle itself is solver-verified unique, so this fallback reveals one
+    // safe cell without pretending it came from a simple local deduction.
     for (var row = 0; row < puzzle.size; row++) {
       final col = puzzle.solution[row];
       if (marks[row][col] != CellMark.thief) {
         return HintSuggestion(
           kind: HintKind.forcedPlacement,
           message:
-              'Global elimination leaves row ${row + 1}, column ${col + 1} as the forced room.',
+              'No short deduction remains. The verified unique solution confirms row ${row + 1}, column ${col + 1} as a safe placement.',
           target: (row: row, col: col),
           mark: CellMark.thief,
         );
