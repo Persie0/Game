@@ -59,7 +59,9 @@ class PuzzleAnalysis {
 class PuzzleGenerator {
   PuzzleGenerator({Random? random}) : _random = random ?? Random();
 
-  static const int generatorVersion = 2;
+  // Increment whenever generation changes so saved/daily puzzles never silently
+  // resolve to a different board after an app update.
+  static const int generatorVersion = 3;
   final Random _random;
 
   Puzzle generate({
@@ -88,31 +90,80 @@ class PuzzleGenerator {
     final effectiveSeed = seed ?? _random.nextInt(0x7fffffff);
     final rng = Random(effectiveSeed);
 
-    for (var attempt = 0; attempt < 3000; attempt++) {
+    for (var attempt = 0; attempt < 5000; attempt++) {
       final solution = _makeSolution(size, rng);
-      if (solution == null) continue;
+      if (solution == null) {
+        continue;
+      }
 
       final regions = _growRegions(size, solution, rng);
-      final basePuzzle = Puzzle(
+      final lasers = <CellPos>{};
+      var essentialLasers = 0;
+
+      // Instead of accepting a board that was already unique and sprinkling
+      // decorative lasers onto it, repeatedly block a cell from an alternative
+      // solution. At least one laser therefore contributes to the logic when
+      // this difficulty uses lasers.
+      while (lasers.length < laserCount) {
+        final current = Puzzle(
+          size: size,
+          regions: regions,
+          solution: solution,
+          lasers: Set<CellPos>.unmodifiable(lasers),
+          seed: effectiveSeed,
+        );
+        final alternative = PuzzleSolver.findAlternative(current, solution);
+        if (alternative == null) {
+          break;
+        }
+
+        final blockers = <CellPos>[];
+        for (var row = 0; row < size; row++) {
+          final col = alternative[row];
+          final pos = (row: row, col: col);
+          if (solution[row] != col && !lasers.contains(pos)) {
+            blockers.add(pos);
+          }
+        }
+        if (blockers.isEmpty) {
+          break;
+        }
+        lasers.add(blockers[rng.nextInt(blockers.length)]);
+        essentialLasers++;
+      }
+
+      final constrained = Puzzle(
         size: size,
         regions: regions,
         solution: solution,
-        lasers: const {},
+        lasers: Set<CellPos>.unmodifiable(lasers),
         seed: effectiveSeed,
       );
+      if (PuzzleSolver.countSolutions(constrained, limit: 2) != 1) {
+        continue;
+      }
+      if (laserCount > 0 && essentialLasers == 0) {
+        continue;
+      }
 
-      if (PuzzleSolver.countSolutions(basePuzzle, limit: 2) != 1) continue;
+      if (lasers.length < laserCount) {
+        final filler = _laserCandidates(size, solution)
+          ..removeWhere(lasers.contains)
+          ..shuffle(rng);
+        lasers.addAll(filler.take(laserCount - lasers.length));
+      }
 
-      final lasers = _placeLasers(size, solution, laserCount, rng);
       final puzzle = Puzzle(
         size: size,
         regions: regions,
         solution: solution,
-        lasers: lasers,
+        lasers: Set<CellPos>.unmodifiable(lasers),
         seed: effectiveSeed,
       );
-
-      if (PuzzleSolver.countSolutions(puzzle, limit: 2) == 1) return puzzle;
+      if (puzzle.lasers.length == laserCount &&
+          PuzzleSolver.countSolutions(puzzle, limit: 2) == 1) {
+        return puzzle;
+      }
     }
 
     throw StateError(
@@ -137,14 +188,22 @@ class PuzzleGenerator {
     final used = List<bool>.filled(size, false);
 
     bool place(int row) {
-      if (row == size) return true;
+      if (row == size) {
+        return true;
+      }
       final candidates = List<int>.generate(size, (i) => i)..shuffle(rng);
       for (final col in candidates) {
-        if (used[col]) continue;
-        if (row > 0 && (columns[row - 1] - col).abs() <= 1) continue;
+        if (used[col]) {
+          continue;
+        }
+        if (row > 0 && (columns[row - 1] - col).abs() <= 1) {
+          continue;
+        }
         columns[row] = col;
         used[col] = true;
-        if (place(row + 1)) return true;
+        if (place(row + 1)) {
+          return true;
+        }
         used[col] = false;
         columns[row] = -1;
       }
@@ -167,13 +226,19 @@ class PuzzleGenerator {
       final frontier = <({int row, int col, List<int> regionChoices})>[];
       for (var row = 0; row < size; row++) {
         for (var col = 0; col < size; col++) {
-          if (regions[row][col] != -1) continue;
+          if (regions[row][col] != -1) {
+            continue;
+          }
           final neighbors = <int>{};
           for (final (dr, dc) in directions) {
             final nr = row + dr;
             final nc = col + dc;
-            if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
-            if (regions[nr][nc] != -1) neighbors.add(regions[nr][nc]);
+            if (nr < 0 || nr >= size || nc < 0 || nc >= size) {
+              continue;
+            }
+            if (regions[nr][nc] != -1) {
+              neighbors.add(regions[nr][nc]);
+            }
           }
           if (neighbors.isNotEmpty) {
             frontier.add((
@@ -185,6 +250,9 @@ class PuzzleGenerator {
         }
       }
 
+      if (frontier.isEmpty) {
+        throw StateError('Region growth lost its frontier.');
+      }
       final chosen = frontier[rng.nextInt(frontier.length)];
       final region =
           chosen.regionChoices[rng.nextInt(chosen.regionChoices.length)];
@@ -195,20 +263,16 @@ class PuzzleGenerator {
     return regions;
   }
 
-  Set<CellPos> _placeLasers(
-    int size,
-    List<int> solution,
-    int count,
-    Random rng,
-  ) {
+  List<CellPos> _laserCandidates(int size, List<int> solution) {
     final candidates = <CellPos>[];
     for (var row = 0; row < size; row++) {
       for (var col = 0; col < size; col++) {
-        if (solution[row] != col) candidates.add((row: row, col: col));
+        if (solution[row] != col) {
+          candidates.add((row: row, col: col));
+        }
       }
     }
-    candidates.shuffle(rng);
-    return candidates.take(count).toSet();
+    return candidates;
   }
 }
 
@@ -219,9 +283,13 @@ class PuzzleSolver {
     CellPos? forceThief,
     int limit = 2,
   }) {
-    if (marks != null &&
-        (marks.length != puzzle.size ||
-            marks.any((row) => row.length != puzzle.size))) {
+    if (limit <= 0 || !_validPuzzleShape(puzzle)) {
+      return 0;
+    }
+    if (!_validMarks(puzzle, marks)) {
+      return 0;
+    }
+    if (forceThief != null && !_inBounds(puzzle, forceThief)) {
       return 0;
     }
 
@@ -230,14 +298,19 @@ class PuzzleSolver {
     if (marks != null) {
       for (var row = 0; row < size; row++) {
         for (var col = 0; col < size; col++) {
-          if (marks[row][col] != CellMark.thief) continue;
-          if (fixed[row] != -1) return 0;
+          if (marks[row][col] != CellMark.thief) {
+            continue;
+          }
+          if (fixed[row] != -1) {
+            return 0;
+          }
           fixed[row] = col;
         }
       }
     }
     if (forceThief != null) {
-      if (fixed[forceThief.row] != -1 && fixed[forceThief.row] != forceThief.col) {
+      if (fixed[forceThief.row] != -1 &&
+          fixed[forceThief.row] != forceThief.col) {
         return 0;
       }
       fixed[forceThief.row] = forceThief.col;
@@ -248,7 +321,9 @@ class PuzzleSolver {
     var count = 0;
 
     void search(int row, int previousColumn) {
-      if (count >= limit) return;
+      if (count >= limit) {
+        return;
+      }
       if (row == size) {
         count++;
         return;
@@ -258,11 +333,19 @@ class PuzzleSolver {
           ? List<int>.generate(size, (index) => index)
           : <int>[fixed[row]];
       for (final col in candidates) {
-        if (puzzle.isLaser(row, col) || usedColumns[col]) continue;
-        if (marks != null && marks[row][col] == CellMark.blocked) continue;
+        if (puzzle.isLaser(row, col) || usedColumns[col]) {
+          continue;
+        }
+        if (marks != null && marks[row][col] == CellMark.blocked) {
+          continue;
+        }
         final region = puzzle.regions[row][col];
-        if (region < 0 || region >= size || usedRegions[region]) continue;
-        if (row > 0 && (col - previousColumn).abs() <= 1) continue;
+        if (region < 0 || region >= size || usedRegions[region]) {
+          continue;
+        }
+        if (row > 0 && (col - previousColumn).abs() <= 1) {
+          continue;
+        }
 
         usedColumns[col] = true;
         usedRegions[region] = true;
@@ -276,7 +359,72 @@ class PuzzleSolver {
     return count;
   }
 
+  static List<int>? findAlternative(Puzzle puzzle, List<int> intended) {
+    if (!_validPuzzleShape(puzzle) || intended.length != puzzle.size) {
+      return null;
+    }
+    final size = puzzle.size;
+    final usedColumns = List<bool>.filled(size, false);
+    final usedRegions = List<bool>.filled(size, false);
+    final columns = List<int>.filled(size, -1);
+    List<int>? alternative;
+
+    void search(int row, int previousColumn) {
+      if (alternative != null) {
+        return;
+      }
+      if (row == size) {
+        var differs = false;
+        for (var index = 0; index < size; index++) {
+          if (columns[index] != intended[index]) {
+            differs = true;
+            break;
+          }
+        }
+        if (differs) {
+          alternative = List<int>.from(columns);
+        }
+        return;
+      }
+
+      for (var col = 0; col < size; col++) {
+        if (puzzle.isLaser(row, col) || usedColumns[col]) {
+          continue;
+        }
+        final region = puzzle.regions[row][col];
+        if (region < 0 || region >= size || usedRegions[region]) {
+          continue;
+        }
+        if (row > 0 && (col - previousColumn).abs() <= 1) {
+          continue;
+        }
+        columns[row] = col;
+        usedColumns[col] = true;
+        usedRegions[region] = true;
+        search(row + 1, col);
+        usedColumns[col] = false;
+        usedRegions[region] = false;
+        columns[row] = -1;
+        if (alternative != null) {
+          return;
+        }
+      }
+    }
+
+    search(0, -99);
+    return alternative;
+  }
+
   static PuzzleAnalysis analyze(Puzzle puzzle) {
+    if (!_validPuzzleShape(puzzle)) {
+      return const PuzzleAnalysis(
+        score: 1,
+        visitedNodes: 0,
+        deadEnds: 0,
+        label: 'Invalid',
+      );
+    }
+
     final size = puzzle.size;
     final usedColumns = List<bool>.filled(size, false);
     final usedRegions = List<bool>.filled(size, false);
@@ -285,7 +433,9 @@ class PuzzleSolver {
     var found = 0;
 
     void search(int row, int previousColumn) {
-      if (found > 1) return;
+      if (found > 1) {
+        return;
+      }
       visitedNodes++;
       if (row == size) {
         found++;
@@ -293,10 +443,16 @@ class PuzzleSolver {
       }
       var options = 0;
       for (var col = 0; col < size; col++) {
-        if (puzzle.isLaser(row, col) || usedColumns[col]) continue;
+        if (puzzle.isLaser(row, col) || usedColumns[col]) {
+          continue;
+        }
         final region = puzzle.regions[row][col];
-        if (usedRegions[region]) continue;
-        if (row > 0 && (col - previousColumn).abs() <= 1) continue;
+        if (region < 0 || region >= size || usedRegions[region]) {
+          continue;
+        }
+        if (row > 0 && (col - previousColumn).abs() <= 1) {
+          continue;
+        }
         options++;
         usedColumns[col] = true;
         usedRegions[region] = true;
@@ -304,7 +460,9 @@ class PuzzleSolver {
         usedColumns[col] = false;
         usedRegions[region] = false;
       }
-      if (options == 0) deadEnds++;
+      if (options == 0) {
+        deadEnds++;
+      }
     }
 
     search(0, -99);
@@ -331,10 +489,17 @@ class PuzzleSolver {
     List<List<CellMark>> marks,
     int row,
   ) {
-    if (marks[row].contains(CellMark.thief)) return const [];
+    if (!_validMarks(puzzle, marks) || row < 0 || row >= puzzle.size) {
+      return const [];
+    }
+    if (marks[row].contains(CellMark.thief)) {
+      return const [];
+    }
     final viable = <CellPos>[];
     for (var col = 0; col < puzzle.size; col++) {
-      if (marks[row][col] == CellMark.blocked || puzzle.isLaser(row, col)) continue;
+      if (marks[row][col] == CellMark.blocked || puzzle.isLaser(row, col)) {
+        continue;
+      }
       final pos = (row: row, col: col);
       if (countSolutions(puzzle, marks: marks, forceThief: pos, limit: 1) > 0) {
         viable.add(pos);
@@ -342,12 +507,31 @@ class PuzzleSolver {
     }
     return viable;
   }
+
+  static bool _validMarks(Puzzle puzzle, List<List<CellMark>>? marks) =>
+      marks == null ||
+      (marks.length == puzzle.size &&
+          marks.every((row) => row.length == puzzle.size));
+
+  static bool _validPuzzleShape(Puzzle puzzle) =>
+      puzzle.size >= 1 &&
+      puzzle.solution.length == puzzle.size &&
+      puzzle.regions.length == puzzle.size &&
+      puzzle.regions.every((row) => row.length == puzzle.size);
+
+  static bool _inBounds(Puzzle puzzle, CellPos pos) =>
+      pos.row >= 0 &&
+      pos.row < puzzle.size &&
+      pos.col >= 0 &&
+      pos.col < puzzle.size;
 }
 
 class PuzzleRules {
   static bool isSolved(Puzzle puzzle, List<List<CellMark>> marks) {
     if (marks.length != puzzle.size ||
-        marks.any((row) => row.length != puzzle.size)) {
+        marks.any((row) => row.length != puzzle.size) ||
+        puzzle.regions.length != puzzle.size ||
+        puzzle.regions.any((row) => row.length != puzzle.size)) {
       return false;
     }
 
@@ -359,11 +543,19 @@ class PuzzleRules {
 
     for (var row = 0; row < size; row++) {
       for (var col = 0; col < size; col++) {
-        if (marks[row][col] != CellMark.thief) continue;
-        if (puzzle.isLaser(row, col)) return false;
+        if (marks[row][col] != CellMark.thief) {
+          continue;
+        }
+        if (puzzle.isLaser(row, col)) {
+          return false;
+        }
+        final region = puzzle.regions[row][col];
+        if (region < 0 || region >= size) {
+          return false;
+        }
         rowCount[row]++;
         colCount[col]++;
-        regionCount[puzzle.regions[row][col]]++;
+        regionCount[region]++;
         thieves.add((row: row, col: col));
       }
     }
@@ -376,7 +568,9 @@ class PuzzleRules {
 
     for (var i = 0; i < thieves.length; i++) {
       for (var j = i + 1; j < thieves.length; j++) {
-        if (_touching(thieves[i], thieves[j])) return false;
+        if (_touching(thieves[i], thieves[j])) {
+          return false;
+        }
       }
     }
     return true;
@@ -384,14 +578,22 @@ class PuzzleRules {
 
   static Set<CellPos> conflicts(Puzzle puzzle, List<List<CellMark>> marks) {
     final result = <CellPos>{};
-    final thieves = <CellPos>[];
+    if (marks.length != puzzle.size ||
+        marks.any((row) => row.length != puzzle.size) ||
+        puzzle.regions.length != puzzle.size ||
+        puzzle.regions.any((row) => row.length != puzzle.size)) {
+      return result;
+    }
 
+    final thieves = <CellPos>[];
     for (var row = 0; row < puzzle.size; row++) {
       for (var col = 0; col < puzzle.size; col++) {
         if (marks[row][col] == CellMark.thief) {
           final pos = (row: row, col: col);
           thieves.add(pos);
-          if (puzzle.isLaser(row, col)) result.add(pos);
+          if (puzzle.isLaser(row, col)) {
+            result.add(pos);
+          }
         }
       }
     }
@@ -402,8 +604,9 @@ class PuzzleRules {
         final b = thieves[j];
         final sameRow = a.row == b.row;
         final sameCol = a.col == b.col;
-        final sameRegion =
-            puzzle.regions[a.row][a.col] == puzzle.regions[b.row][b.col];
+        final regionA = puzzle.regions[a.row][a.col];
+        final regionB = puzzle.regions[b.row][b.col];
+        final sameRegion = regionA >= 0 && regionA == regionB;
         if (sameRow || sameCol || sameRegion || _touching(a, b)) {
           result.add(a);
           result.add(b);
@@ -414,10 +617,25 @@ class PuzzleRules {
   }
 
   static bool attacks(Puzzle puzzle, CellPos thief, CellPos cell) {
-    if (thief == cell) return false;
+    if (thief == cell) {
+      return false;
+    }
+    final sameRegion = puzzle.regions.length == puzzle.size &&
+        thief.row >= 0 &&
+        thief.row < puzzle.size &&
+        cell.row >= 0 &&
+        cell.row < puzzle.size &&
+        puzzle.regions[thief.row].length == puzzle.size &&
+        puzzle.regions[cell.row].length == puzzle.size &&
+        thief.col >= 0 &&
+        thief.col < puzzle.size &&
+        cell.col >= 0 &&
+        cell.col < puzzle.size &&
+        puzzle.regions[thief.row][thief.col] ==
+            puzzle.regions[cell.row][cell.col];
     return thief.row == cell.row ||
         thief.col == cell.col ||
-        puzzle.regions[thief.row][thief.col] == puzzle.regions[cell.row][cell.col] ||
+        sameRegion ||
         _touching(thief, cell);
   }
 
