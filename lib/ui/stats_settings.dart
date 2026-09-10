@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../game/progress.dart';
 import '../game/puzzle.dart';
+import 'game_style.dart';
 import 'pro_page.dart';
 
 class StatsTab extends StatelessWidget {
@@ -49,97 +50,164 @@ class StatsTab extends StatelessWidget {
 
     return ListView(
       key: const PageStorageKey('stats'),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 108),
       children: [
-        Text(
-          'Career',
-          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+        const HeistSectionTitle(
+          eyebrow: 'Confidential dossier',
+          title: 'Career record',
         ),
-        const SizedBox(height: 16),
-        _RankCard(progress: p),
         const SizedBox(height: 14),
+        HeistPanel(
+          emphasis: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.rankName.toUpperCase(),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.7,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text('Agent level ${p.level}', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text('${p.xp} total XP'),
+              const SizedBox(height: 13),
+              HeistProgressBar(value: p.levelProgress),
+              const SizedBox(height: 7),
+              Text(
+                '${500 - p.xpIntoLevel} XP until next clearance level',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.63),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'FIELD METRICS',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.6,
+          ),
+        ),
+        const SizedBox(height: 10),
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.65,
+          childAspectRatio: 1.55,
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,
           children: [
-            _MetricCard(value: '${p.totalSolved}', label: 'Artifacts secured'),
-            _MetricCard(value: '${p.bestStreak}', label: 'Best daily streak'),
-            _MetricCard(value: '${p.perfectSolved}', label: 'Perfect heists'),
-            _MetricCard(
+            _Metric(value: '${p.totalSolved}', label: 'Artifacts secured', icon: Icons.diamond_rounded),
+            _Metric(value: '${p.bestStreak}', label: 'Best daily streak', icon: Icons.local_fire_department_rounded),
+            _Metric(value: '${p.perfectSolved}', label: 'Perfect heists', icon: Icons.auto_awesome_rounded),
+            _Metric(
               value: p.totalSolved == 0 ? '—' : p.averageMoves.toStringAsFixed(1),
-              label: 'Avg moves',
+              label: 'Average moves',
+              icon: Icons.touch_app_rounded,
             ),
-            _MetricCard(
+            _Metric(
               value: p.totalSolved == 0 ? '—' : _formatTime(p.averageSeconds.round()),
-              label: 'Avg time',
+              label: 'Average time',
+              icon: Icons.schedule_rounded,
             ),
-            _MetricCard(value: '${p.totalHints}', label: 'Hints used'),
+            _Metric(value: '${p.totalHints}', label: 'Intel used', icon: Icons.lightbulb_outline_rounded),
           ],
         ),
         const SizedBox(height: 24),
-        Text(
-          'Personal records',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        const HeistSectionTitle(
+          eyebrow: 'Personal bests',
+          title: 'Case records',
         ),
         const SizedBox(height: 10),
-        Card(
+        HeistPanel(
           child: Column(
             children: [
-              for (final difficulty in HeistDifficulty.values)
-                ListTile(
-                  leading: CircleAvatar(child: Text('${difficulty.size}')),
-                  title: Text(difficulty.label),
-                  subtitle: Text(
-                    [
-                      if (p.bestMoves[difficulty.name] != null)
-                        '${p.bestMoves[difficulty.name]} moves',
-                      if (p.bestSeconds[difficulty.name] != null)
-                        _formatTime(p.bestSeconds[difficulty.name]!),
-                    ].isEmpty
-                        ? 'No clear yet'
-                        : [
-                            if (p.bestMoves[difficulty.name] != null)
-                              '${p.bestMoves[difficulty.name]} moves',
-                            if (p.bestSeconds[difficulty.name] != null)
-                              _formatTime(p.bestSeconds[difficulty.name]!),
-                          ].join(' · '),
-                  ),
+              for (var i = 0; i < HeistDifficulty.values.length; i++) ...[
+                _RecordRow(
+                  difficulty: HeistDifficulty.values[i],
+                  moves: p.bestMoves[HeistDifficulty.values[i].name],
+                  seconds: p.bestSeconds[HeistDifficulty.values[i].name],
                 ),
+                if (i != HeistDifficulty.values.length - 1)
+                  Divider(
+                    height: 22,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.10),
+                  ),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 24),
-        Text(
-          'Achievements',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        const HeistSectionTitle(
+          eyebrow: 'Milestones',
+          title: 'Achievements',
         ),
         const SizedBox(height: 10),
-        for (final achievement in achievements)
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: achievement.unlocked
-                    ? theme.colorScheme.primaryContainer
-                    : theme.colorScheme.surfaceContainerHighest,
-                child: Icon(
-                  achievement.icon,
-                  color: achievement.unlocked ? theme.colorScheme.primary : theme.disabledColor,
+        for (final achievement in achievements) ...[
+          HeistPanel(
+            accent: achievement.unlocked
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withValues(alpha: 0.25),
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: (achievement.unlocked
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface)
+                        .withValues(alpha: 0.10),
+                    border: Border.all(
+                      color: (achievement.unlocked
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurface)
+                          .withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Icon(
+                    achievement.icon,
+                    color: achievement.unlocked
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.38),
+                  ),
                 ),
-              ),
-              title: Text(
-                achievement.title,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(achievement.detail),
-              trailing: Icon(
-                achievement.unlocked ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(achievement.title, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        achievement.detail,
+                        style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  achievement.unlocked
+                      ? Icons.check_circle_rounded
+                      : Icons.lock_outline_rounded,
+                  color: achievement.unlocked
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.34),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 9),
+        ],
       ],
     );
   }
@@ -152,115 +220,89 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final settings = controller.settings;
     final progress = controller.progress;
     return ListView(
       key: const PageStorageKey('settings'),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 108),
       children: [
-        Text(
-          'Settings',
-          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+        const HeistSectionTitle(
+          eyebrow: 'Loadout configuration',
+          title: 'Gear & preferences',
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         _Section(
-          title: 'Appearance',
+          title: 'VISUAL KIT',
+          icon: Icons.palette_outlined,
           children: [
-            ListTile(
-              title: const Text('Theme'),
-              trailing: DropdownButton<AppThemeSetting>(
-                value: settings.theme,
-                underline: const SizedBox.shrink(),
-                items: [
-                  for (final value in AppThemeSetting.values)
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(_title(value.name)),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    controller.updateSettings((s) => s.theme = value);
-                  }
-                },
-              ),
+            _ChoiceRow<AppThemeSetting>(
+              title: 'Lighting',
+              value: settings.theme,
+              values: AppThemeSetting.values,
+              label: (value) => _title(value.name),
+              onChanged: (value) => controller.updateSettings((s) => s.theme = value),
             ),
-            ListTile(
-              title: const Text('Museum skin'),
-              subtitle: Text('${_title(settings.skin.name)} · unlock with reputation'),
-              trailing: PopupMenuButton<MuseumSkin>(
-                icon: const Icon(Icons.palette_outlined),
-                onSelected: (skin) => controller.updateSettings((s) => s.skin = skin),
-                itemBuilder: (_) => [
-                  for (final skin in MuseumSkin.values)
-                    PopupMenuItem(
-                      value: skin,
-                      enabled: progress.isSkinUnlocked(skin),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(_title(skin.name))),
-                          if (!progress.isSkinUnlocked(skin)) const Icon(Icons.lock_outline, size: 18),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            SwitchListTile(
+            _SkinRow(controller: controller, progress: progress),
+            _ToggleRow(
+              icon: Icons.abc_rounded,
+              title: 'Zone labels',
+              subtitle: 'Show A/B/C labels so regions never rely on color alone.',
               value: settings.regionLabels,
-              title: const Text('Region labels'),
-              subtitle: const Text('Add A/B/C labels so regions do not rely on color alone.'),
               onChanged: (value) => controller.updateSettings((s) => s.regionLabels = value),
             ),
-            SwitchListTile(
+            _ToggleRow(
+              icon: Icons.animation_rounded,
+              title: 'Reduced motion',
               value: settings.reducedMotion,
-              title: const Text('Reduced motion'),
               onChanged: (value) => controller.updateSettings((s) => s.reducedMotion = value),
             ),
           ],
         ),
         const SizedBox(height: 14),
         _Section(
-          title: 'Gameplay',
+          title: 'FIELD ASSISTS',
+          icon: Icons.tune_rounded,
           children: [
-            SwitchListTile(
+            _ToggleRow(
+              icon: Icons.auto_fix_high_rounded,
+              title: 'Auto-mark impossible rooms',
+              subtitle: 'Placing a thief X-marks attacked rooms; undo reverses the whole action.',
               value: settings.autoCross,
-              title: const Text('Auto-mark impossible rooms'),
-              subtitle: const Text('Placing a thief X-marks rooms it attacks; undo reverses the whole action.'),
               onChanged: (value) => controller.updateSettings((s) => s.autoCross = value),
             ),
-            SwitchListTile(
+            _ToggleRow(
+              icon: Icons.warning_amber_rounded,
+              title: 'Show conflicts',
+              subtitle: 'Highlight thief placements that violate a rule.',
               value: settings.showConflicts,
-              title: const Text('Show conflicts'),
-              subtitle: const Text('Highlight thief placements that violate a rule.'),
               onChanged: (value) => controller.updateSettings((s) => s.showConflicts = value),
             ),
-            SwitchListTile(
+            _ToggleRow(
+              icon: Icons.vibration_rounded,
+              title: 'Haptics',
               value: settings.haptics,
-              title: const Text('Haptics'),
               onChanged: (value) => controller.updateSettings((s) => s.haptics = value),
             ),
-            SwitchListTile(
+            _ToggleRow(
+              icon: Icons.volume_up_rounded,
+              title: 'Sound effects',
               value: settings.sound,
-              title: const Text('Sound effects'),
               onChanged: (value) => controller.updateSettings((s) => s.sound = value),
             ),
           ],
         ),
         const SizedBox(height: 14),
         _Section(
-          title: 'Museum Heist Pro',
+          title: 'PRIVATE VAULT',
+          icon: Icons.diamond_rounded,
           children: [
-            ListTile(
-              leading: Icon(
-                controller.isPro ? Icons.verified_rounded : Icons.workspace_premium_rounded,
-              ),
-              title: Text(controller.isPro ? 'Pro unlocked' : 'Unlock Pro'),
-              subtitle: Text(
-                controller.isPro ? 'No ads · unlimited hints' : 'Remove ads and unlock unlimited logical hints.',
-              ),
-              trailing: controller.isPro ? null : const Icon(Icons.chevron_right_rounded),
+            _ActionRow(
+              icon: controller.isPro ? Icons.verified_rounded : Icons.key_rounded,
+              title: controller.isPro ? 'Pro access granted' : 'Unlock Museum Heist Pro',
+              subtitle: controller.isPro
+                  ? 'No ads · unlimited intel'
+                  : 'Remove ads and unlock unlimited logical hints.',
+              trailing: controller.isPro ? null : Icons.chevron_right_rounded,
               onTap: controller.isPro
                   ? null
                   : () => Navigator.of(context).push(
@@ -268,8 +310,9 @@ class SettingsTab extends StatelessWidget {
                       ),
             ),
             if (!controller.isPro)
-              ListTile(
-                title: const Text('Restore purchases'),
+              _ActionRow(
+                icon: Icons.restore_rounded,
+                title: 'Restore purchase',
                 onTap: () async {
                   await controller.restorePurchases();
                   if (context.mounted) {
@@ -284,13 +327,14 @@ class SettingsTab extends StatelessWidget {
         if (controller.ads.configured) ...[
           const SizedBox(height: 14),
           _Section(
-            title: 'Privacy',
+            title: 'PRIVACY',
+            icon: Icons.privacy_tip_outlined,
             children: [
-              ListTile(
-                leading: const Icon(Icons.privacy_tip_outlined),
-                title: const Text('Ad privacy choices'),
-                subtitle: const Text('Review or change consent choices for advertising.'),
-                trailing: const Icon(Icons.chevron_right_rounded),
+              _ActionRow(
+                icon: Icons.shield_outlined,
+                title: 'Ad privacy choices',
+                subtitle: 'Review or change consent choices for advertising.',
+                trailing: Icons.chevron_right_rounded,
                 onTap: controller.ads.showPrivacyOptions,
               ),
             ],
@@ -298,12 +342,14 @@ class SettingsTab extends StatelessWidget {
         ],
         const SizedBox(height: 14),
         _Section(
-          title: 'Data',
+          title: 'ARCHIVE',
+          icon: Icons.archive_outlined,
           children: [
-            ListTile(
-              title: const Text('Reset game progress'),
-              subtitle: const Text('Clears statistics and the active heist; keeps Pro.'),
-              trailing: const Icon(Icons.delete_outline_rounded),
+            _ActionRow(
+              icon: Icons.delete_outline_rounded,
+              title: 'Burn career file',
+              subtitle: 'Reset statistics and the active heist. Pro access is kept.',
+              trailing: Icons.chevron_right_rounded,
               onTap: () => _confirmReset(context),
             ),
           ],
@@ -316,18 +362,21 @@ class SettingsTab extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset progress?'),
+        title: const Text('BURN CAREER FILE?'),
         content: const Text(
           'This clears levels, streaks, statistics, achievements, and the active heist.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const Text('CANCEL'),
           ),
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Reset'),
+            child: Text(
+              'RESET',
+              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -336,72 +385,93 @@ class SettingsTab extends StatelessWidget {
   }
 }
 
-class _RankCard extends StatelessWidget {
-  const _RankCard({required this.progress});
+class _Metric extends StatelessWidget {
+  const _Metric({required this.value, required this.label, required this.icon});
 
-  final PlayerProgress progress;
+  final String value;
+  final String label;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      color: theme.colorScheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              progress.rankName,
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            Text('Level ${progress.level} · ${progress.xp} total XP'),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(value: progress.levelProgress, minHeight: 9),
-            ),
-            const SizedBox(height: 6),
-            Text('${500 - progress.xpIntoLevel} XP to next level'),
-          ],
-        ),
+    return HeistPanel(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(height: 4),
+          Text(value, style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.value, required this.label});
+class _RecordRow extends StatelessWidget {
+  const _RecordRow({
+    required this.difficulty,
+    required this.moves,
+    required this.seconds,
+  });
 
-  final String value;
-  final String label;
+  final HeistDifficulty difficulty;
+  final int? moves;
+  final int? seconds;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              value,
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+    final record = [
+      if (moves != null) '$moves moves',
+      if (seconds != null) _formatTime(seconds!),
+    ];
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.colorScheme.primary.withValues(alpha: 0.10),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: 0.30),
             ),
-            const SizedBox(height: 3),
-            Text(label, textAlign: TextAlign.center),
-          ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${difficulty.size}',
+            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary),
+          ),
         ),
-      ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(difficulty.label, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 2),
+              Text(record.isEmpty ? 'No clear yet' : record.join(' · ')),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.children});
+  const _Section({required this.title, required this.icon, required this.children});
 
   final String title;
+  final IconData icon;
   final List<Widget> children;
 
   @override
@@ -411,14 +481,208 @@ class _Section extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 6),
-          child: Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          padding: const EdgeInsets.only(left: 4, bottom: 7),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: theme.colorScheme.primary),
+              const SizedBox(width: 7),
+              Text(
+                title,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
-        Card(child: Column(children: children)),
+        HeistPanel(
+          padding: EdgeInsets.zero,
+          child: Column(children: children),
+        ),
       ],
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Icon(icon, color: theme.colorScheme.primary, size: 21),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!, style: theme.textTheme.bodySmall),
+                  ],
+                ],
+              ),
+            ),
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChoiceRow<T> extends StatelessWidget {
+  const _ChoiceRow({
+    required this.title,
+    required this.value,
+    required this.values,
+    required this.label,
+    required this.onChanged,
+  });
+
+  final String title;
+  final T value;
+  final List<T> values;
+  final String Function(T) label;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.light_mode_outlined, size: 21),
+          const SizedBox(width: 12),
+          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))),
+          DropdownButton<T>(
+            value: value,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (final item in values)
+                DropdownMenuItem(value: item, child: Text(label(item))),
+            ],
+            onChanged: (next) {
+              if (next != null) onChanged(next);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkinRow extends StatelessWidget {
+  const _SkinRow({required this.controller, required this.progress});
+
+  final AppController controller;
+  final PlayerProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = controller.settings;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: Row(
+        children: [
+          const Icon(Icons.texture_rounded, size: 21),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Museum finish', style: TextStyle(fontWeight: FontWeight.w800)),
+                Text('${_title(settings.skin.name)} · unlock with reputation'),
+              ],
+            ),
+          ),
+          PopupMenuButton<MuseumSkin>(
+            icon: const Icon(Icons.expand_more_rounded),
+            onSelected: (skin) => controller.updateSettings((s) => s.skin = skin),
+            itemBuilder: (_) => [
+              for (final skin in MuseumSkin.values)
+                PopupMenuItem(
+                  value: skin,
+                  enabled: progress.isSkinUnlocked(skin),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(_title(skin.name))),
+                      if (!progress.isSkinUnlocked(skin))
+                        const Icon(Icons.lock_outline_rounded, size: 18),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final IconData? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            Icon(icon, color: theme.colorScheme.primary, size: 21),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!, style: theme.textTheme.bodySmall),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) Icon(trailing, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }
