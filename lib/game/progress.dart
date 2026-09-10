@@ -47,12 +47,12 @@ class GameSettings {
           (value) => value.name == json['skin'],
           orElse: () => MuseumSkin.classic,
         ),
-        sound: json['sound'] as bool? ?? true,
-        haptics: json['haptics'] as bool? ?? true,
-        autoCross: json['autoCross'] as bool? ?? true,
-        showConflicts: json['showConflicts'] as bool? ?? true,
-        reducedMotion: json['reducedMotion'] as bool? ?? false,
-        regionLabels: json['regionLabels'] as bool? ?? false,
+        sound: _readBool(json['sound'], fallback: true),
+        haptics: _readBool(json['haptics'], fallback: true),
+        autoCross: _readBool(json['autoCross'], fallback: true),
+        showConflicts: _readBool(json['showConflicts'], fallback: true),
+        reducedMotion: _readBool(json['reducedMotion']),
+        regionLabels: _readBool(json['regionLabels']),
       );
 }
 
@@ -108,7 +108,8 @@ class PlayerProgress {
   int get level => xp ~/ 500 + 1;
   int get xpIntoLevel => xp % 500;
   double get levelProgress => xpIntoLevel / 500;
-  double get averageSeconds => totalSolved == 0 ? 0 : totalSeconds / totalSolved;
+  double get averageSeconds =>
+      totalSolved == 0 ? 0 : totalSeconds / totalSolved;
   double get averageMoves => totalSolved == 0 ? 0 : totalMoves / totalSolved;
 
   String get rankName => switch (level) {
@@ -139,9 +140,16 @@ class PlayerProgress {
     required int mistakes,
     required int difficultyScore,
   }) {
+    final safeMoves = moves < 0 ? 0 : moves;
+    final safeSeconds = seconds < 0 ? 0 : seconds;
+    final safeHints = hintsUsed < 0 ? 0 : hintsUsed;
+    final safeMistakes = mistakes < 0 ? 0 : mistakes;
+    final safeDifficultyScore = difficultyScore.clamp(0, 100);
+
     final oldLevel = level;
     final key = '${dateKey(completedAt)}:${difficulty.name}';
-    final isNewDaily = mode == GameMode.daily && !dailyCompletions.contains(key);
+    final isNewDaily =
+        mode == GameMode.daily && !dailyCompletions.contains(key);
     if (mode == GameMode.daily && !isNewDaily) {
       return ProgressReward(
         xp: 0,
@@ -151,31 +159,35 @@ class PlayerProgress {
       );
     }
 
-    final isPerfect = hintsUsed == 0 && mistakes == 0;
-    final movePenalty = (moves - difficulty.size).clamp(0, 30) as int;
-    final efficiency = (90 - movePenalty * 3).clamp(0, 90) as int;
-    final hintPenalty = (hintsUsed * 20).clamp(0, 80) as int;
+    final isPerfect = safeHints == 0 && safeMistakes == 0;
+    final movePenalty = (safeMoves - difficulty.size).clamp(0, 30);
+    final efficiency = (90 - movePenalty * 3).clamp(0, 90);
+    final hintPenalty = (safeHints * 20).clamp(0, 80);
     final earned = (difficulty.baseXp +
-            difficultyScore +
+            safeDifficultyScore +
             efficiency +
             (isPerfect ? 60 : 0) +
             (mode == GameMode.daily ? 80 : 0) -
             hintPenalty)
-        .clamp(25, 600) as int;
+        .clamp(25, 600);
 
     xp += earned;
     totalSolved++;
-    totalMoves += moves;
-    totalSeconds += seconds;
-    totalHints += hintsUsed;
-    if (isPerfect) perfectSolved++;
+    totalMoves += safeMoves;
+    totalSeconds += safeSeconds;
+    totalHints += safeHints;
+    if (isPerfect) {
+      perfectSolved++;
+    }
 
     final difficultyKey = difficulty.name;
     final oldBestMoves = bestMoves[difficultyKey];
-    if (oldBestMoves == null || moves < oldBestMoves) bestMoves[difficultyKey] = moves;
+    if (oldBestMoves == null || safeMoves < oldBestMoves) {
+      bestMoves[difficultyKey] = safeMoves;
+    }
     final oldBestSeconds = bestSeconds[difficultyKey];
-    if (oldBestSeconds == null || seconds < oldBestSeconds) {
-      bestSeconds[difficultyKey] = seconds;
+    if (oldBestSeconds == null || safeSeconds < oldBestSeconds) {
+      bestSeconds[difficultyKey] = safeSeconds;
     }
 
     if (mode == GameMode.daily) {
@@ -195,15 +207,20 @@ class PlayerProgress {
 
   void _recordDailyStreak(DateTime date) {
     final today = dateKey(date);
-    if (lastDailyDate == today) return;
-    final previous = DateTime(date.year, date.month, date.day).subtract(const Duration(days: 1));
+    if (lastDailyDate == today) {
+      return;
+    }
+    final previous = DateTime(date.year, date.month, date.day)
+        .subtract(const Duration(days: 1));
     if (lastDailyDate == dateKey(previous)) {
       currentStreak++;
     } else {
       currentStreak = 1;
     }
     lastDailyDate = today;
-    if (currentStreak > bestStreak) bestStreak = currentStreak;
+    if (currentStreak > bestStreak) {
+      bestStreak = currentStreak;
+    }
   }
 
   Map<String, Object?> toJson() => {
@@ -224,27 +241,33 @@ class PlayerProgress {
       };
 
   factory PlayerProgress.fromJson(Map<String, Object?> json) => PlayerProgress(
-        xp: json['xp'] as int? ?? 0,
-        totalSolved: json['totalSolved'] as int? ?? 0,
-        totalMoves: json['totalMoves'] as int? ?? 0,
-        totalSeconds: json['totalSeconds'] as int? ?? 0,
-        totalHints: json['totalHints'] as int? ?? 0,
-        perfectSolved: json['perfectSolved'] as int? ?? 0,
-        currentStreak: json['currentStreak'] as int? ?? 0,
-        bestStreak: json['bestStreak'] as int? ?? 0,
-        lastDailyDate: json['lastDailyDate'] as String?,
-        dailyCompletions: Set<String>.from(
-          json['dailyCompletions'] as List<Object?>? ?? const [],
-        ),
+        xp: _readNonNegativeInt(json['xp']),
+        totalSolved: _readNonNegativeInt(json['totalSolved']),
+        totalMoves: _readNonNegativeInt(json['totalMoves']),
+        totalSeconds: _readNonNegativeInt(json['totalSeconds']),
+        totalHints: _readNonNegativeInt(json['totalHints']),
+        perfectSolved: _readNonNegativeInt(json['perfectSolved']),
+        currentStreak: _readNonNegativeInt(json['currentStreak']),
+        bestStreak: _readNonNegativeInt(json['bestStreak']),
+        lastDailyDate:
+            json['lastDailyDate'] is String ? json['lastDailyDate'] as String : null,
+        dailyCompletions: _stringSet(json['dailyCompletions']),
         bestMoves: _intMap(json['bestMoves']),
         bestSeconds: _intMap(json['bestSeconds']),
-        pro: json['pro'] as bool? ?? false,
-        freePlaySinceAd: json['freePlaySinceAd'] as int? ?? 0,
+        pro: _readBool(json['pro']),
+        freePlaySinceAd: _readNonNegativeInt(json['freePlaySinceAd']),
       );
 
   static Map<String, int> _intMap(Object? raw) {
     if (raw is! Map) return {};
-    return raw.map((key, value) => MapEntry(key.toString(), value as int));
+    final result = <String, int>{};
+    for (final entry in raw.entries) {
+      final value = _readNullableInt(entry.value);
+      if (value != null && value >= 0) {
+        result[entry.key.toString()] = value;
+      }
+    }
+    return result;
   }
 
   static String dateKey(DateTime date) =>
@@ -286,10 +309,13 @@ class ActiveGameData {
           (value) => value.name == json['difficulty'],
           orElse: () => HeistDifficulty.professional,
         ),
-        seed: json['seed'] as int? ?? 1,
-        generatorVersion: json['generatorVersion'] as int? ?? 1,
-        session: Map<String, Object?>.from(json['session'] as Map? ?? const {}),
-        elapsedSeconds: json['elapsedSeconds'] as int? ?? 0,
+        seed: _readNullableInt(json['seed']) ?? 1,
+        generatorVersion:
+            (_readNullableInt(json['generatorVersion']) ?? 1).clamp(1, 1000),
+        session: json['session'] is Map
+            ? Map<String, Object?>.from(json['session']! as Map)
+            : <String, Object?>{},
+        elapsedSeconds: _readNonNegativeInt(json['elapsedSeconds']),
       );
 }
 
@@ -319,15 +345,38 @@ class PersistentState {
     final active = json['activeGame'];
     return PersistentState(
       settings: GameSettings.fromJson(
-        Map<String, Object?>.from(json['settings'] as Map? ?? const {}),
+        json['settings'] is Map
+            ? Map<String, Object?>.from(json['settings']! as Map)
+            : <String, Object?>{},
       ),
       progress: PlayerProgress.fromJson(
-        Map<String, Object?>.from(json['progress'] as Map? ?? const {}),
+        json['progress'] is Map
+            ? Map<String, Object?>.from(json['progress']! as Map)
+            : <String, Object?>{},
       ),
-      onboardingDone: json['onboardingDone'] as bool? ?? false,
+      onboardingDone: _readBool(json['onboardingDone']),
       activeGame: active is Map
           ? ActiveGameData.fromJson(Map<String, Object?>.from(active))
           : null,
     );
   }
+}
+
+bool _readBool(Object? value, {bool fallback = false}) =>
+    value is bool ? value : fallback;
+
+int? _readNullableInt(Object? value) {
+  if (value is int) return value;
+  if (value is num && value.isFinite) return value.toInt();
+  return null;
+}
+
+int _readNonNegativeInt(Object? value) {
+  final parsed = _readNullableInt(value) ?? 0;
+  return parsed < 0 ? 0 : parsed;
+}
+
+Set<String> _stringSet(Object? value) {
+  if (value is! List) return <String>{};
+  return {for (final item in value) if (item is String) item};
 }
