@@ -41,13 +41,36 @@ void main() {
       }
     });
 
+    test('at least one laser is essential to puzzle uniqueness', () {
+      final puzzle = PuzzleGenerator().generate(
+        difficulty: HeistDifficulty.professional,
+        seed: 424242,
+      );
+      var foundEssentialLaser = false;
+      for (final laser in puzzle.lasers) {
+        final reduced = Puzzle(
+          size: puzzle.size,
+          regions: puzzle.regions,
+          solution: puzzle.solution,
+          lasers: {...puzzle.lasers}..remove(laser),
+          seed: puzzle.seed,
+          version: puzzle.version,
+        );
+        if (PuzzleSolver.countSolutions(reduced, limit: 2) > 1) {
+          foundEssentialLaser = true;
+          break;
+        }
+      }
+      expect(foundEssentialLaser, isTrue);
+    });
+
     test('daily puzzle seed is versioned and deterministic', () {
       final generator = PuzzleGenerator();
       final date = DateTime(2026, 9, 10);
       final a = generator.dailySeed(date, HeistDifficulty.professional);
       final b = generator.dailySeed(date, HeistDifficulty.professional);
       expect(a, b);
-      expect(a, greaterThan(2000000000));
+      expect(a, greaterThan(3000000000));
     });
 
     test('difficulty analysis is stable and bounded', () {
@@ -60,6 +83,20 @@ void main() {
       expect(first.score, second.score);
       expect(first.score, inInclusiveRange(1, 100));
       expect(first.visitedNodes, greaterThan(0));
+    });
+
+    test('solver rejects malformed force coordinates', () {
+      final puzzle = PuzzleGenerator().generate(
+        difficulty: HeistDifficulty.rookie,
+        seed: 22001,
+      );
+      expect(
+        PuzzleSolver.countSolutions(
+          puzzle,
+          forceThief: (row: -1, col: 0),
+        ),
+        0,
+      );
     });
   });
 
@@ -91,10 +128,12 @@ void main() {
       );
     });
 
-    test('laser cells cannot be edited', () {
+    test('laser cells and out-of-range cells cannot be edited', () {
       final laser = puzzle.lasers.first;
       expect(session.cycle(laser.row, laser.col), isFalse);
       expect(session.toggleBlocked(laser.row, laser.col), isFalse);
+      expect(session.cycle(-1, 0), isFalse);
+      expect(session.toggleBlocked(puzzle.size, 0), isFalse);
     });
 
     test('session round-trips marks and undo history', () {
@@ -105,6 +144,43 @@ void main() {
       expect(restored.moves, session.moves);
       expect(restored.canUndo, isTrue);
       expect(restored.undo(), isTrue);
+    });
+
+    test('reset cannot erase hint usage for a perfect-clear exploit', () {
+      final hint = session.nextHint();
+      expect(hint, isNotNull);
+      expect(session.applyHint(hint!), isTrue);
+      expect(session.hintsUsed, 1);
+      session.reset();
+      expect(session.hintsUsed, 1);
+      expect(session.moves, 0);
+      expect(
+        session.marks.expand((row) => row).every((mark) => mark == CellMark.empty),
+        isTrue,
+      );
+    });
+
+    test('a repeated no-op hint does not increase hint usage', () {
+      final hint = session.nextHint();
+      expect(hint, isNotNull);
+      expect(session.applyHint(hint!), isTrue);
+      expect(session.hintsUsed, 1);
+      expect(session.applyHint(hint), isFalse);
+      expect(session.hintsUsed, 1);
+    });
+
+    test('malformed saved history is discarded without losing valid marks', () {
+      final col = puzzle.solution[0];
+      session.cycle(0, col);
+      final json = Map<String, Object?>.from(session.toJson());
+      json['history'] = [
+        [
+          {'r': 999, 'c': 0, 'b': 0, 'a': 2},
+        ],
+      ];
+      final restored = GameSession.fromJson(puzzle, json);
+      expect(restored.marks[0][col], CellMark.thief);
+      expect(restored.canUndo, isFalse);
     });
   });
 
