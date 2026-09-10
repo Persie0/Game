@@ -20,13 +20,6 @@ class CellChange {
         'b': before.index,
         'a': after.index,
       };
-
-  factory CellChange.fromJson(Map<String, Object?> json) => CellChange(
-        row: json['r']! as int,
-        col: json['c']! as int,
-        before: CellMark.values[json['b']! as int],
-        after: CellMark.values[json['a']! as int],
-      );
 }
 
 class GameSession {
@@ -58,7 +51,7 @@ class GameSession {
   bool get isSolved => PuzzleRules.isSolved(puzzle, marks);
 
   bool cycle(int row, int col, {bool autoCross = false}) {
-    if (puzzle.isLaser(row, col)) return false;
+    if (!_inBounds(row, col) || puzzle.isLaser(row, col)) return false;
     final before = marks[row][col];
     final after = switch (before) {
       CellMark.empty => CellMark.thief,
@@ -69,24 +62,28 @@ class GameSession {
   }
 
   bool toggleBlocked(int row, int col) {
-    if (puzzle.isLaser(row, col)) return false;
+    if (!_inBounds(row, col) || puzzle.isLaser(row, col)) return false;
     final before = marks[row][col];
-    final after = before == CellMark.blocked ? CellMark.empty : CellMark.blocked;
+    final after =
+        before == CellMark.blocked ? CellMark.empty : CellMark.blocked;
     return _applyAction(row, col, after);
   }
 
   HintSuggestion? nextHint() => HintEngine.next(puzzle, marks);
 
   bool applyHint(HintSuggestion hint, {bool autoCross = false}) {
-    if (puzzle.isLaser(hint.target.row, hint.target.col)) return false;
-    hintsUsed++;
-    return _applyAction(
-      hint.target.row,
-      hint.target.col,
+    final row = hint.target.row;
+    final col = hint.target.col;
+    if (!_inBounds(row, col) || puzzle.isLaser(row, col)) return false;
+    final applied = _applyAction(
+      row,
+      col,
       hint.mark,
       autoCross: autoCross && hint.mark == CellMark.thief,
       countMistake: false,
     );
+    if (applied) hintsUsed++;
+    return applied;
   }
 
   bool undo() {
@@ -103,8 +100,8 @@ class GameSession {
       row.fillRange(0, row.length, CellMark.empty);
     }
     _history.clear();
-    hintsUsed = 0;
-    mistakes = 0;
+    // Hints and mistakes intentionally survive a board reset. Otherwise a
+    // player could use assistance, reset, and still earn a "perfect" clear.
   }
 
   bool _applyAction(
@@ -148,6 +145,9 @@ class GameSession {
     changes.add(CellChange(row: row, col: col, before: before, after: after));
   }
 
+  bool _inBounds(int row, int col) =>
+      row >= 0 && row < puzzle.size && col >= 0 && col < puzzle.size;
+
   Map<String, Object> toJson() => {
         'marks': [
           for (final row in marks) [for (final mark in row) mark.index],
@@ -161,40 +161,100 @@ class GameSession {
       };
 
   factory GameSession.fromJson(Puzzle puzzle, Map<String, Object?> json) {
-    final rawMarks = json['marks'] as List<Object?>?;
-    if (rawMarks == null || rawMarks.length != puzzle.size) {
+    final rawMarks = json['marks'];
+    if (rawMarks is! List || rawMarks.length != puzzle.size) {
       return GameSession(puzzle);
     }
+
     final marks = <List<CellMark>>[];
     for (final rawRow in rawMarks) {
-      final values = rawRow as List<Object?>;
-      if (values.length != puzzle.size) return GameSession(puzzle);
-      marks.add([
-        for (final value in values)
-          CellMark.values[(value as int).clamp(0, CellMark.values.length - 1)],
-      ]);
+      if (rawRow is! List || rawRow.length != puzzle.size) {
+        return GameSession(puzzle);
+      }
+      final row = <CellMark>[];
+      for (final value in rawRow) {
+        final index = _readInt(value);
+        if (index == null || index < 0 || index >= CellMark.values.length) {
+          return GameSession(puzzle);
+        }
+        row.add(CellMark.values[index]);
+      }
+      marks.add(row);
+    }
+
+    // Laser cells can never contain user marks. Sanitizing them protects
+    // against stale/corrupt saves without throwing away the rest of a puzzle.
+    for (final laser in puzzle.lasers) {
+      marks[laser.row][laser.col] = CellMark.empty;
     }
 
     final history = <List<CellChange>>[];
-    final rawHistory = json['history'] as List<Object?>? ?? const [];
-    for (final rawAction in rawHistory) {
-      final action = <CellChange>[];
-      for (final rawChange in rawAction as List<Object?>) {
-        action.add(
-          CellChange.fromJson(
-            Map<String, Object?>.from(rawChange! as Map),
-          ),
-        );
+    final rawHistory = json['history'];
+    var historyValid = rawHistory == null || rawHistory is List;
+    if (rawHistory is List) {
+      for (final rawAction in rawHistory) {
+        if (rawAction is! List) {
+          historyValid = false;
+          break;
+        }
+        final action = <CellChange>[];
+        for (final rawChange in rawAction) {
+          if (rawChange is! Map) {
+            historyValid = false;
+            break;
+          }
+          final map = Map<String, Object?>.from(rawChange);
+          final row = _readInt(map['r']);
+          final col = _readInt(map['c']);
+          final before = _readInt(map['b']);
+          final after = _readInt(map['a']);
+          if (row == null ||
+              col == null ||
+              before == null ||
+              after == null ||
+              row < 0 ||
+              row >= puzzle.size ||
+              col < 0 ||
+              col >= puzzle.size ||
+              before < 0 ||
+              before >= CellMark.values.length ||
+              after < 0 ||
+              after >= CellMark.values.length ||
+              puzzle.isLaser(row, col)) {
+            historyValid = false;
+            break;
+          }
+          action.add(
+            CellChange(
+              row: row,
+              col: col,
+              before: CellMark.values[before],
+              after: CellMark.values[after],
+            ),
+          );
+        }
+        if (!historyValid) break;
+        if (action.isNotEmpty) history.add(action);
       }
-      history.add(action);
     }
 
     return GameSession._(
       puzzle,
       marks,
-      history,
-      json['hintsUsed'] as int? ?? 0,
-      json['mistakes'] as int? ?? 0,
+      historyValid ? history : <List<CellChange>>[],
+      _readNonNegativeInt(json['hintsUsed']),
+      _readNonNegativeInt(json['mistakes']),
     );
+  }
+
+  static int? _readInt(Object? value) {
+    if (value is int) return value;
+    if (value is num && value.isFinite) return value.toInt();
+    return null;
+  }
+
+  static int _readNonNegativeInt(Object? value) {
+    final parsed = _readInt(value) ?? 0;
+    return parsed < 0 ? 0 : parsed;
   }
 }
